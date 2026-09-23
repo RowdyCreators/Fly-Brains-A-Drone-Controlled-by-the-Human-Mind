@@ -4,3 +4,4 @@ A drone controlled by the human mind!
 ### Meet the Team
 Samuel Saylor
 Donny Phounsavath
+Chan Polavarapu
