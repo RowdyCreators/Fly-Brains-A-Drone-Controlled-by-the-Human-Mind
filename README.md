@@ -10,4 +10,4 @@ Dennis Morgan\
 Angel Moya\
 Shrey Patel\
 Kosha Antala\
-Jasper Stephens\
+Jasper Stephens
