@@ -10,3 +10,5 @@ smbus2 gives lower-level I2C access if anyone wants to talk to the ADS1115 direc
 
 
 '''
+
+yada hyada yada
