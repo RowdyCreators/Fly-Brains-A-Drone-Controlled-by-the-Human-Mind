@@ -18,3 +18,19 @@ Jasper Stephens
 - [Raspberry Pi Documentation](https://www.raspberrypi.com/documentation/)
 - [Arduino Documentation](https://docs.arduino.cc)
 - [Adafruit ADS1115 Information](https://www.adafruit.com/product/1085)
+
+
+### Assumed Data Format:
+3 Channels with alpha, beta, and gamma waves (one row per channel)
+[
+    [alpha_ch0, beta_ch0, gamma_ch0],
+    [alpha_ch1, beta_ch1, gamma_ch1],
+    [alpha_ch2, beta_ch2, gamma_ch2]
+]
+
+Example: 
+[
+    [0.42, 0.31, 0.27],
+    [0.38, 0.35, 0.27],
+    [0.47, 0.29, 0.24]
+]
