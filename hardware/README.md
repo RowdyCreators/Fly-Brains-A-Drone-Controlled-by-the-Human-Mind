@@ -54,15 +54,6 @@ altitude hold, throttle at center means hold height, so `up` and `down` adjust a
 Because of the watchdog, **a control loop must call `command()` every
 iteration**, even when the command hasn't changed.
 
-## Examples
-
-```bash
-python3 Hardware/examples/keyboard_control.py   # WASD/QE/arrows to fly
-python3 Hardware/examples/bci_loop.py --dry-run # classifier-loop template
-```
-
-Add `--dry-run` to either one to run without hardware (fake DAC).
-
 ## Files
 
 | File | Purpose |
