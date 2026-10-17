@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hardwaretodrone"
+version = "0.1.0"
+description = "Drive the Holy Stone HS210 Pro's stock remote from a Raspberry Pi via an MCP4728 DAC"
+requires-python = ">=3.9"
+dependencies = ["smbus2>=0.4", "PyYAML>=6.0"]
+
+[tool.setuptools]
+packages = ["hardwaretodrone"]
