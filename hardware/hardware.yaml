@@ -1,0 +1,54 @@
+# hardware.yaml — BCI drone hardware map
+# Single source of truth for pins, addresses, and channel assignments.
+# Code should read from this file instead of hardcoding values.
+
+pi:
+  model: raspberry-pi-4
+  i2c_bus: 1                # /dev/i2c-1 → GPIO2 (SDA, pin 3), GPIO3 (SCL, pin 5)
+  logic_voltage: 3.3
+
+# ── EEG input side ───────────────────────────────────────────
+eeg:
+  frontend: bioamp-exg-pill
+  supply_voltage: 3.3       # keep at 3.3V so output never exceeds ADS1115 VDD
+
+  adc:
+    chip: ads1115
+    i2c_address: 0x48       # ADDR pin tied to GND
+    channel: A0             # BioAmp OUT → A0
+    gain: 1                 # ±4.096V full scale (covers 0–3.3V signal)
+    sample_rate_sps: 860    # ADS1115 max
+
+# ── Drone output side ────────────────────────────────────────
+control:
+  dac:
+    chip: mcp4728
+    i2c_address: 0x60       # factory default
+    vref: vdd               # outputs span 0 → supply (3.3V)
+    resolution_bits: 12     # 0–4095
+
+  # DAC channel → remote joystick axis
+  # Measured on the stock remote's pot wipers (pot supply = 3.3V regulated).
+  # min_dir / max_dir = which way the physical stick was pushed for that reading.
+  # Axis names assume Mode 2 — confirm with a props-off bench test.
+  axes:
+    pitch:    { channel: A, pot: 1, stick: right, min_v: 0.03, center_v: 1.63,  max_v: 3.30, min_dir: down, max_dir: up }
+    roll:     { channel: B, pot: 2, stick: right, min_v: 0.00, center_v: 1.66,  max_v: 3.30, min_dir: left, max_dir: right }
+    yaw:      { channel: C, pot: 3, stick: left,  min_v: 0.00, center_v: 1.63,  max_v: 3.30, min_dir: left, max_dir: right }
+    throttle: { channel: D, pot: 4, stick: left,  min_v: 0.00, center_v: 1.657, max_v: 3.29, min_dir: down, max_dir: up }
+
+  # On startup / crash / signal loss, drive every axis here
+  failsafe: center
+
+drone:
+  model: holy-stone-hs210-pro
+  link: 2.4ghz-stock-remote  # remote sits on desk, wired to DAC
+  camera: wifi-fpv            # separate WiFi stream, not used for control
+
+# ── Wiring reference (not read by code) ──────────────────────
+# Pi pin 1  (3.3V) → ADS1115 VDD, MCP4728 VCC, BioAmp VCC
+# Pi pin 3  (SDA)  → ADS1115 SDA, MCP4728 SDA
+# Pi pin 5  (SCL)  → ADS1115 SCL, MCP4728 SCL
+# Pi pin 6  (GND)  → ADS1115 GND + ADDR, MCP4728 GND, BioAmp GND, REMOTE GND
+# BioAmp OUT       → ADS1115 A0
+# MCP4728 VA–VD    → remote joystick wiper lines (see axes above)
