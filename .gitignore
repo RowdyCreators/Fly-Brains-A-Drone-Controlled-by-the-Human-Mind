@@ -1,1 +1,4 @@
 .venv
+Hardware/.venv/
+notes.txt
+*.pyc
