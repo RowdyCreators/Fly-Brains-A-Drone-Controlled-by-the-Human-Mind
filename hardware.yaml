@@ -28,13 +28,14 @@ control:
     resolution_bits: 12     # 0–4095
 
   # DAC channel → remote joystick axis
-  # Voltages are PLACEHOLDERS — measure each stick's wiper with a
-  # multimeter (min / center / max) and replace before first flight.
+  # Measured on the stock remote's pot wipers (pot supply = 3.3V regulated).
+  # min_dir / max_dir = which way the physical stick was pushed for that reading.
+  # Axis names assume Mode 2 — confirm with a props-off bench test.
   axes:
-    throttle: { channel: A, min_v: null, center_v: null, max_v: null }
-    yaw:      { channel: B, min_v: null, center_v: null, max_v: null }
-    pitch:    { channel: C, min_v: null, center_v: null, max_v: null }
-    roll:     { channel: D, min_v: null, center_v: null, max_v: null }
+    pitch:    { channel: A, pot: 1, stick: right, min_v: 0.03, center_v: 1.63,  max_v: 3.30, min_dir: down, max_dir: up }
+    roll:     { channel: B, pot: 2, stick: right, min_v: 0.00, center_v: 1.66,  max_v: 3.30, min_dir: left, max_dir: right }
+    yaw:      { channel: C, pot: 3, stick: left,  min_v: 0.00, center_v: 1.63,  max_v: 3.30, min_dir: left, max_dir: right }
+    throttle: { channel: D, pot: 4, stick: left,  min_v: 0.00, center_v: 1.657, max_v: 3.29, min_dir: down, max_dir: up }
 
   # On startup / crash / signal loss, drive every axis here
   failsafe: center
