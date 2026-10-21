@@ -1,0 +1,50 @@
+"""Read and store alpha, beta, and gamma brain-signal readings."""
+
+import time
+
+import board
+import busio
+import adafruit_ads1x15.ads1115 as ADS
+from adafruit_ads1x15.analog_in import AnalogIn
+
+
+class flybrian:
+    """Collect three analog brain-signal channels and store their samples."""
+
+    def __init__(self, sample_rate=0.01):
+        self.i2c = busio.I2C(board.SCL, board.SDA)
+        self.ads = ADS.ADS1115(self.i2c)
+        self.channels = {
+            "alpha": AnalogIn(self.ads, 0),
+            "beta": AnalogIn(self.ads, 1),
+            "gamma": AnalogIn(self.ads, 2),
+        }
+        self.sample_rate = sample_rate
+        self.signals = []
+
+    def read_signals(self):
+        """Read alpha, beta, and gamma values as one sample."""
+        return [
+            self.channels["alpha"].voltage,
+            self.channels["beta"].voltage,
+            self.channels["gamma"].voltage,
+        ]
+
+    def main(self, number_of_samples=None):
+        """Store samples until the requested count is reached."""
+        if number_of_samples is None:
+            while True:
+                self.signals.append(self.read_signals())
+                time.sleep(self.sample_rate)
+
+        for _ in range(number_of_samples):
+            self.signals.append(self.read_signals())
+            time.sleep(self.sample_rate)
+
+        return self.signals
+
+
+if __name__ == "__main__":
+    brain = flybrian()
+    brain.main(number_of_samples=100)
+    print(brain.signals)
