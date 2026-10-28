@@ -1,13 +1,3 @@
-"""Virtual remote: click and hold a button to fly the drone.
-
-    python dronevirtualcontroller.py              # real hardware (on the Pi)
-    python dronevirtualcontroller.py --dry-run    # fake DAC, no hardware
-
-Each image in dronevirtualcontrollerimages/ is a full 800x600 overlay, so the
-buttons are already in position. Their clickable area is found from the
-non-transparent pixels of each image.
-"""
-
 import sys
 from pathlib import Path
 
