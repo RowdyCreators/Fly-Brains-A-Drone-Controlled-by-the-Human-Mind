@@ -47,3 +47,7 @@ Example:
     [0.38, 0.35, 0.27],
     [0.47, 0.29, 0.24]
 ]
+
+## Testing WITHOUT a the Hardware
+
+If you wish to give it a shot at testing this project WITHOUT access to the hardware assumed for the project, we do provide CLAUDE.md with instructions for an LLM to simulate the program. Keep in mind it isn't intended for vibecoding, but instead using LLMs as your "hardware". We actually created that file as a solution to our most prevalent issue: our campus' WiFi being terrible and making SSHing nearly impossible.
