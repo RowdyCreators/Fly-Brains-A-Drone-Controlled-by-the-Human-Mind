@@ -10,7 +10,8 @@ Dennis Morgan\
 Angel Moya\
 Shrey Patel\
 Kosha Antala\
-Jasper Stephens     
+Jasper Stephens\
+Shah Zaman     
 
 ## Resources:
 - BioAmp EXG Pill:
