@@ -89,7 +89,10 @@ def get_source(rate_hz=10, max_samples=None):
         print("Reading from ADS1115 hardware.")
         return read_ads1115(rate_hz, max_samples)
     except (ImportError, NotImplementedError):
-        from brain_simulator import simulate_brain
+        try:
+            from .brain_simulator import simulate_brain
+        except ImportError:  # run directly as a script from signals/
+            from brain_simulator import simulate_brain
 
         print("No ADS1115 found, using the brain simulator.")
         return simulate_brain(rate_hz=rate_hz, max_samples=max_samples)
