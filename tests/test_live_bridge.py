@@ -108,6 +108,47 @@ class BridgeTests(unittest.TestCase):
         self.assertIn("axes", result)
         self.assertEqual(len(drone.sets), 1)
 
+    def test_low_confidence_is_hover_with_zero_axes(self):
+        # PR #15, point 5: a low-confidence window (nothing clearly
+        # above baseline) must be hover, with all axes at zero -- not
+        # a drifted command.
+        mapper = DroneMapper()
+        samples = [(0.12, -0.02, 0.33)] * 5 + [(0.12, -0.02, 0.33)] * 10
+        results = list(stream_to_processor(samples, mapper=mapper))
+        self.assertEqual(len(results), 10)
+        last = results[-1]
+        self.assertEqual(last["state"], "neutral")
+        self.assertEqual(last["command"], "hover")
+        self.assertEqual(last["axes"],
+                         {"pitch": 0.0, "roll": 0.0,
+                          "yaw": 0.0, "throttle": 0.0})
+
+    def test_command_matches_axes_in_map_mode(self):
+        # PR #15, point 2, end to end: an alpha spike must give
+        # command=forward (from the pitch axis), never hover with
+        # pitch at +0.50; a gamma spike must give command=up.
+        mapper = DroneMapper()
+        samples = [(0.12, -0.02, 0.33)] * 5 + [(0.22, -0.02, 0.33)] * 10
+        results = list(stream_to_processor(samples, mapper=mapper))
+        self.assertGreater(results[-1]["axes"]["pitch"], 0.0)
+        self.assertEqual(results[-1]["command"], "forward")
+        mapper = DroneMapper()
+        samples = [(0.12, -0.02, 0.33)] * 5 + [(0.12, -0.02, 0.43)] * 10
+        results = list(stream_to_processor(samples, mapper=mapper))
+        self.assertGreater(results[-1]["axes"]["throttle"], 0.0)
+        self.assertEqual(results[-1]["command"], "up")
+
+    def test_drone_set_called_every_window_even_at_hover(self):
+        # PR #15, point 5 (and the 0.5 s watchdog): drone.set() on
+        # every processed window, even when the axes never move.
+        drone = FakeDrone()
+        mapper = DroneMapper()
+        samples = [(0.12, -0.02, 0.33)] * 5 + [(0.12, -0.02, 0.33)] * 10
+        results = list(stream_to_processor(samples, mapper=mapper, drone=drone))
+        self.assertEqual(len(drone.sets), len(results))
+        self.assertEqual(len(drone.sets), 10)
+        self.assertTrue(all(s == (0.0, 0.0, 0.0, 0.0) for s in drone.sets))
+
 
 if __name__ == "__main__":
     unittest.main()

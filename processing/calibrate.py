@@ -106,6 +106,40 @@ def _midpoint(a, b, floor=0.5):
     return round(max(floor, (a + b) / 2.0), 2)
 
 
+def build_profile(rows, window_size=10):
+    """Build a per-user profile from a labelled session.
+
+    Returns ``{"baseline": {channel: [mean, std]}, "thresholds": {...},
+    "separates": bool}`` -- the baseline is measured from that user's
+    own ``baseline`` rows (not the first N samples of a live run) and
+    the thresholds are the suggested ones from :func:`suggest_thresholds`.
+    This is the per-user training step requested in the PR #15 review:
+    record a labelled session (baseline, then focus, then relax...),
+    build a profile, and load it with
+    ``SignalProcessor.from_profile(path)`` or ``--profile`` in
+    ``processing/main.py``. The profile is that user's, not a default:
+    do not share one user's profile with another user.
+    """
+    baseline_rows = [r[:4] for r in rows if r[4] == "baseline"]
+    if len(baseline_rows) < 5:
+        raise ValueError(
+            "need at least 5 baseline rows to set the calibration baseline"
+        )
+    processor = SignalProcessor(window_size=window_size)
+    baseline = processor.calibrate(baseline_rows)
+    summary = analyse(rows, window_size=window_size)
+    suggested = suggest_thresholds(summary)
+    thresholds = {k: v for k, v in suggested.items()
+                  if k in ("focus_threshold", "relax_threshold",
+                           "gamma_threshold", "active_threshold",
+                           "active_margin")}
+    return {
+        "baseline": {ch: [mean, std] for ch, (mean, std) in baseline.items()},
+        "thresholds": thresholds,
+        "separates": suggested.get("separates"),
+    }
+
+
 def suggest_thresholds(summary):
     out = {}
     if "focus" in summary and "relax" in summary:
@@ -171,6 +205,8 @@ def main(argv=None):
     parser.add_argument("--csv", required=True, help="Labelled session CSV")
     parser.add_argument("--window", type=int, default=10)
     parser.add_argument("--output", help="Also write suggested thresholds as JSON")
+    parser.add_argument("--profile", help="Also write a per-user profile JSON "
+                        "(baseline + thresholds) for SignalProcessor.from_profile")
     args = parser.parse_args(argv)
     rows = load_labelled_csv(args.csv)
     summary = analyse(rows, window_size=args.window)
@@ -180,6 +216,10 @@ def main(argv=None):
         with open(args.output, "w") as fh:
             json.dump(suggested, fh, indent=2)
         print(f"Wrote {args.output}")
+    if args.profile:
+        with open(args.profile, "w") as fh:
+            json.dump(build_profile(rows, window_size=args.window), fh, indent=2)
+        print(f"Wrote {args.profile}")
 
 
 if __name__ == "__main__":

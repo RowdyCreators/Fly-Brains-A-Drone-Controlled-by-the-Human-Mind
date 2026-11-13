@@ -7,9 +7,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from processing.calibrate import (  # noqa: E402
     analyse,
+    build_profile,
     load_labelled_csv,
     suggest_thresholds,
 )
+from processing.processor import SignalProcessor  # noqa: E402
 
 
 def _rows():
@@ -64,6 +66,37 @@ class CalibrateTests(unittest.TestCase):
             self.assertEqual(rows[0][4], "baseline")
         finally:
             os.unlink(path)
+
+    def test_build_profile_roundtrip_separates_focus_and_relax(self):
+        # Per-user profile (PR #15, point 1): the baseline and the
+        # thresholds come from this user's own labelled session, and
+        # a processor built from the profile separates focus/relax
+        # without any first-N-samples auto-calibration.
+        import json
+
+        profile = build_profile(_rows())
+        self.assertAlmostEqual(profile["baseline"]["alpha"][0], 0.10)
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".json", delete=False
+        ) as fh:
+            json.dump(profile, fh)
+            path = fh.name
+        try:
+            proc = SignalProcessor.from_profile(path)
+        finally:
+            os.unlink(path)
+        self.assertIsNotNone(proc.baseline)
+        t = 100.0
+        last = None
+        for _ in range(10):
+            last = proc.add_sample((t, 0.05, 0.30, 0.10))
+            t += 0.1
+        self.assertIsNotNone(last)
+        self.assertEqual(last["state"], "focus")
+        for _ in range(10):
+            last = proc.add_sample((t, 0.30, 0.05, 0.10))
+            t += 0.1
+        self.assertEqual(last["state"], "relax")
 
 
 if __name__ == "__main__":

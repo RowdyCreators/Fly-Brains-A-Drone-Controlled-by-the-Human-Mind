@@ -14,3 +14,4 @@ Hardware/hardwaretodrone.egg-info/
 
 CLAUDE.md
 AGENTS.md
+__pycache__/

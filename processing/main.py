@@ -77,7 +77,10 @@ def _live_source(rate_hz, max_samples):
     try:
         return get_source(rate_hz=rate_hz, max_samples=max_samples)
     except (ImportError, ModuleNotFoundError):
-        from signals.brain_sim import simulate_brain
+        try:
+            from signals.brain_simulator import simulate_brain
+        except ImportError:
+            from signals.brain_sim import simulate_brain
 
         print("No ADS1115 found, using the brain simulator.")
         return simulate_brain(rate_hz=rate_hz, max_samples=max_samples)
@@ -128,9 +131,17 @@ def main(argv=None):
                              "map: print the Option C drone axes (pitch/roll/throttle/yaw) per window")
     parser.add_argument("--drone-dry-run", action="store_true",
                         help="Also send each command to a dry-run Drone (FakeDAC, no hardware)")
+    parser.add_argument("--profile", help="Per-user profile JSON from "
+                        "processing/calibrate.py --profile (replaces the "
+                        "first-N-samples auto-baseline and the default "
+                        "thresholds with that user's own training session)")
     args = parser.parse_args(argv)
 
-    processor = SignalProcessor(window_size=args.window)
+    if args.profile:
+        processor = SignalProcessor.from_profile(
+            args.profile, window_size=args.window)
+    else:
+        processor = SignalProcessor(window_size=args.window)
     mapper = DroneMapper() if args.mode == "map" else None
     drone = None
     if args.drone_dry_run:
@@ -159,6 +170,9 @@ def _send(args, mapper, drone, result):
             result["axes"] = mapper.drive(drone, result)
         else:
             result["axes"] = mapper.update(result)
+        # Command and axes must come from the same decision (PR #15):
+        # the command is the axes' summary, not the processor state's.
+        result["command"] = mapper.command_from_axes(result["axes"])
     elif drone is not None:
         drive_drone(drone, result)
 
@@ -189,7 +203,8 @@ def _run(args, processor, drone, mapper=None):
         on_sample=on_sample,
     )
     print(f"Received {len(received)} samples, "
-          f"final state={processor.state}, command={processor.command}, "
+          f"final state={processor.state}, "
+          f"command={(results[-1]['command'] if results else processor.command)}, "
           f"active_channel={processor.active_channel}"
           + (f", axes={mapper.velocity}" if mapper is not None else ""))
     if args.output and results:

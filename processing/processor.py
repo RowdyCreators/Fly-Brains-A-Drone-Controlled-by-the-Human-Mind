@@ -58,6 +58,7 @@ Stdlib only -- no numpy / scipy -- so it runs on the Pi as-is, next to
 """
 
 import csv
+import json
 import math
 from collections import deque
 
@@ -175,6 +176,44 @@ class SignalProcessor:
             mean = _mean(values)
             self.baseline[name] = (mean, max(_std(values, mean), MIN_STD))
         return self.baseline
+
+    # -- per-user profile ----------------------------------------------
+    def apply_profile(self, profile):
+        """Apply a per-user profile from ``processing/calibrate.py``.
+
+        A profile is ``{"baseline": {channel: [mean, std]}, "thresholds":
+        {focus_threshold, relax_threshold, gamma_threshold,
+        active_threshold, active_margin}}``. It replaces the
+        first-N-samples auto-baseline and the default thresholds with
+        values measured from that user's own labelled training session
+        (see ``calibrate.build_profile``). This is the per-user
+        training step requested in the PR #15 review: one baseline
+        collected at the start is not a substitute for it.
+        """
+        baseline = profile.get("baseline") or {}
+        if self.baseline is None:
+            self.baseline = {}
+        for name in CHANNELS:
+            if name in baseline:
+                mean, std = baseline[name]
+                self.baseline[name] = (float(mean), max(float(std), MIN_STD))
+        thresholds = profile.get("thresholds") or {}
+        for attr in ("focus_threshold", "relax_threshold", "gamma_threshold",
+                     "active_threshold", "active_margin"):
+            if attr in thresholds:
+                setattr(self, attr, float(thresholds[attr]))
+        self._calibration = []
+        return self.baseline
+
+    @classmethod
+    def from_profile(cls, profile, **kwargs):
+        """Build a processor from a per-user profile (dict or JSON path)."""
+        if isinstance(profile, (str, bytes)):
+            with open(profile) as fh:
+                profile = json.load(fh)
+        proc = cls(**kwargs)
+        proc.apply_profile(profile)
+        return proc
 
     # -- per-sample ----------------------------------------------------
     def _clean(self, sample):

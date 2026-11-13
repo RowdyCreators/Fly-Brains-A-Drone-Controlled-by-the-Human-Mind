@@ -1,6 +1,6 @@
 # Drone mapping plan — alpha / beta / gamma → 3D movement
 
-**Status: PLAN ONLY — for Chan's review. No code written yet.**
+**Status: IMPLEMENTED (Option C) on branch `live-bridge`, PR #15 — see §8 for the review decisions.**
 **Branch context:** `Brain_sim_Test`, processor in `processing/processor.py`, drone in `Hardware/hardwaretodrone/drone.py` on `main`.
 
 ## 1. What we have
@@ -99,6 +99,83 @@ New file, no changes to `FlyBrain` or to the drone library:
 - `processing/processor.py` — small addition only: expose per-channel activation (`alpha_active` ∈ `+1` / `0` / `−1`, same for beta/gamma) alongside the existing `active_channel`, so the mapper does not recompute thresholds. `active_channel` / `state` / `command` stay as they are.
 - `processing/main.py` — new flag `--mode map` (alongside existing `--mode command` / `--mode channel`): prints one line per window like `t=… pitch=+0.25 roll=0.00 throttle=+0.25 yaw=0.00`, and with `--drone-dry-run` calls the mapper against a dry-run `Drone`.
 - `tests/test_drone_map.py` — new, stdlib only, FakeDrone with a `set()` recorder. Tests: alpha up → pitch steps +0.25 then +0.50 (capped); alpha down → pitch −0.25; beta up + gamma up together → roll + throttle in one `set()`; dead zone decays to 0; `none` on all channels → hover; `set()` called every window (watchdog); velocity never exceeds MAX_SPEED.
+
+## 8. Team decisions — PR #15 review (Samuel Saylor, 2026-11-13)
+
+These record the review of PR #15. Items marked PROPOSED need the
+team (Samuel, Jasper, Shah, Chan) to sign off before they are final.
+
+### 8a. Electrode question — PROPOSED: electrode 0 (first pill, A0)
+
+`live_bridge.py` reads one electrode's row of `rel_p` as
+alpha / beta / gamma, default `electrode=0` (`DEFAULT_ELECTRODE` in
+`live_bridge.py`, overridable with `electrode=` — a one-line change,
+no code restructure).
+
+- **Proposed decision:** electrode 0 — the first EXG pill, wired to
+  ADS1115 A0. Rationale: `Hardware/hardware.yaml` today wires only
+  one pill, to A0; `signals/eeg_pipeline.py` returns one row per
+  pill, so row 0 is the pill on A0, and that pill's three bands are
+  the processor's alpha / beta / gamma.
+- **Alternative considered:** a channel is a *band across electrodes*
+  (e.g. alpha = mean alpha power over C3/Cz/C4). That would need
+  `band_powers_to_sample` to average a column instead of taking a
+  row, and a team agreement on which electrodes count.
+- **What would change the decision:** if the team wires a second or
+  third pill to A1/A2 and wants the mapper to read a different pill,
+  or if a labelled session shows another electrode separates
+  focus/relax better. Until then, electrode 0 stands.
+
+### 8b. Per-user calibration (review point 1) — IMPLEMENTED, needs a real session
+
+The fixed mapping (alpha→pitch, beta→roll, gamma→throttle) stays,
+but the baseline and thresholds are now per-user, not one fixed
+start-of-run baseline:
+
+1. Record a labelled session per user: ~30 s neutral `baseline`,
+   then deliberately focus, relax, active (see `processing/calibrate.py`).
+2. `python -m processing.calibrate --csv labelled.csv --profile user.json`
+   writes `{"baseline": {channel: [mean, std]}, "thresholds": {...}}`.
+3. `python -m processing.main --profile user.json ...` (or
+   `SignalProcessor.from_profile("user.json")`) loads that user's
+   baseline + thresholds instead of auto-calibrating on the first 5
+   samples. A profile is that user's only — do not share profiles
+   between users.
+4. What is still missing: a real labelled session from a real
+   person. Until one exists, every profile is a starting point from
+   synthetic data, and the drone stays in dry-run.
+
+### 8c. Command / axes from the same decision (review point 2) — FIXED
+
+`result["command"]` in map mode (and in the bridge demo) is now
+derived from the axes themselves via `drone_map.axes_to_command`:
+the axis with the largest |velocity| wins (ties: pitch, then roll,
+then throttle), all-zero axes = `hover`. The processor `state`
+(focus/relax/...) is unchanged — it is the classifier's state, not
+the drone decision. The output can no longer show `command=hover`
+with pitch/roll/throttle at ±0.50.
+
+### 8d. Cleanup (review point 4) — FIXED
+
+- Tracked `__pycache__` files (`signals/__pycache__/`,
+  `tests/__pycache__/`) were removed from git (`git rm --cached`);
+  `__pycache__/` is now in `.gitignore`. Tracked files are not
+  ignored by gitignore alone, which is how the `.pyc` got in.
+- One simulator only: `signals/brain_sim.py` (identical to
+  `brain_simulator.py`) was deleted; `brain_simulator.py` on main
+  is the one, and `processing/main.py`'s fallback import now uses it.
+
+### 8e. Tests and hardware warning (review points 5–6) — DONE
+
+- New tests: profile round-trip and per-user separation
+  (`tests/test_calibrate.py`), low-confidence → hover with axes at
+  zero (`tests/test_live_bridge.py`), and `drone.set()` called on
+  every processed window even at hover (`tests/test_live_bridge.py`;
+  the mapper test already covered this in `tests/test_drone_map.py`).
+- Docstring warnings added to `processing/live_bridge.py` and
+  `processing/drone_map.py`: do not drive a real drone without a
+  labelled per-user profile, a props-off bench test of the whole
+  chain, and a physical kill switch / remote hover override.
 
 ## 6. Open questions for Chan (decide before I build it)
 

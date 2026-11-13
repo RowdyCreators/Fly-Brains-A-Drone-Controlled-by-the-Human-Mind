@@ -12,7 +12,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from processing.drone_map import DroneMapper  # noqa: E402
+from processing.drone_map import DroneMapper, axes_to_command  # noqa: E402
 from processing.processor import SignalProcessor  # noqa: E402
 
 
@@ -107,8 +107,6 @@ class MapperTests(unittest.TestCase):
                           "throttle": 0.0})
 
     def test_processor_alpha_spike_drives_pitch_after_debounce(self):
-        # End to end: processor debounces the channel (3 windows),
-        # then the mapper steps pitch. Calm baseline first.
         p = SignalProcessor(window_size=5, calibrate_samples=5, debounce=3)
         m = DroneMapper()
         for i in range(5):
@@ -122,6 +120,37 @@ class MapperTests(unittest.TestCase):
         self.assertEqual(axes["pitch"], 0.5)
         self.assertEqual(axes["roll"], 0.0)
         self.assertEqual(axes["throttle"], 0.0)
+
+    def test_axes_to_command_matches_the_axes(self):
+        # PR #15, point 2: the command is the axes' summary, so the
+        # output can never show command=hover with axes at +/-0.50.
+        zero = {"pitch": 0.0, "roll": 0.0, "yaw": 0.0, "throttle": 0.0}
+        self.assertEqual(axes_to_command(zero), "hover")
+        self.assertEqual(
+            axes_to_command({**zero, "pitch": 0.5}), "forward")
+        self.assertEqual(
+            axes_to_command({**zero, "pitch": -0.25}), "backward")
+        self.assertEqual(
+            axes_to_command({**zero, "roll": 0.5}), "right")
+        self.assertEqual(
+            axes_to_command({**zero, "roll": -0.5}), "left")
+        self.assertEqual(
+            axes_to_command({**zero, "throttle": 0.25}), "up")
+        self.assertEqual(
+            axes_to_command({**zero, "throttle": -0.5}), "down")
+        # Dominant axis wins; ties break pitch, then roll, then throttle.
+        self.assertEqual(
+            axes_to_command({**zero, "pitch": 0.5, "roll": 0.25}),
+            "forward")
+        self.assertEqual(
+            axes_to_command({**zero, "pitch": 0.25, "roll": 0.25}),
+            "forward")
+        self.assertEqual(
+            axes_to_command({**zero, "roll": 0.25, "throttle": 0.5}),
+            "up")
+        self.assertEqual(
+            DroneMapper().command_from_axes({**zero, "pitch": -0.5}),
+            "backward")
 
 
 if __name__ == "__main__":

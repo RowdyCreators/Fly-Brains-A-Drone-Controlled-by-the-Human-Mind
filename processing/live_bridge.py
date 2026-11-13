@@ -1,5 +1,16 @@
 """Live bridge: feed signals data, live, into processing.
 
+WARNING -- DO NOT DRIVE A REAL DRONE WITH THIS YET. This bridge
+only connects the pipeline to the processor; it does not prove the
+signal is a real command. Before any real flight: record a labelled
+per-user training session and load its profile (see
+``processing/calibrate.py`` and ``SignalProcessor.from_profile``),
+bench-test the whole chain (Pi + DAC + remote, props off) with the
+real pipeline, and keep a physical kill switch / a way to force
+hover from the remote. The thresholds are still starting points,
+the simulator's signal drifts, and until a labelled session proves
+otherwise the axes can move on drift alone. Dry-run only until then.
+
 This is the missing link for Fly-Brains issue #14 ("Create pipeline
 between signals and processing"): it takes the data the ``signals/``
 side produces, as it arrives, and hands it to ``SignalProcessor``
@@ -77,8 +88,17 @@ Usage -- whole pipeline, simulated, from the command line:
 
 import time
 
-from processing.drone_map import DroneMapper
+from processing.drone_map import DroneMapper, axes_to_command
 from processing.processor import CHANNELS, SignalProcessor, drive_drone
+
+# Which electrode's band powers feed the processor. The pipeline
+# returns one row per electrode (3 EXG pills); the processor has 3
+# channels, so this bridge reads the 3 bands of ONE electrode as
+# alpha / beta / gamma. Default 0 = the first pill, wired to ADS1115
+# A0 (see "Team decisions" in drone-mapping-plan.md -- this is a
+# PROPOSED decision, pending team sign-off; change it with the
+# electrode= argument, not by editing this constant in place).
+DEFAULT_ELECTRODE = 0
 
 
 def band_powers_to_sample(rel_p, electrode=0, timestamp=None):
@@ -101,6 +121,11 @@ def _send_result(result, mapper, drone, on_result):
             result["axes"] = mapper.drive(drone, result)
         else:
             result["axes"] = mapper.update(result)
+        # Command and axes must come from the same decision (PR #15):
+        # the command is the axes' summary, not the processor state's,
+        # so the output can never again show command=hover with the
+        # axes at +/-0.50.
+        result["command"] = axes_to_command(result["axes"])
     elif drone is not None:
         drive_drone(drone, result)
     if on_result is not None:
@@ -137,7 +162,7 @@ def stream_to_processor(source, processor=None, mapper=None,
 
 
 def stream_band_powers_to_processor(band_power_stream, processor=None,
-                                    electrode=0, mapper=None, drone=None,
+                                    electrode=DEFAULT_ELECTRODE, mapper=None, drone=None,
                                     on_result=None):
     """Feed a live stream of band-power updates into the processor.
 
@@ -171,7 +196,7 @@ class PipelineBridge:
     still calibrating its baseline.
     """
 
-    def __init__(self, processor=None, mapper=None, electrode=0):
+    def __init__(self, processor=None, mapper=None, electrode=DEFAULT_ELECTRODE):
         self.processor = processor if processor is not None else SignalProcessor()
         self.mapper = mapper
         self.electrode = electrode

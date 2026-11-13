@@ -36,6 +36,14 @@ and, if given a drone, sends ``set(0, 0, 0, 0)``. Any result of None
 is treated as hover (velocity decays). Takeoff / landing are never
 done here -- they are by hand with the remote's physical button.
 
+WARNING -- DO NOT DRIVE A REAL DRONE WITH THIS YET (PR #15 review,
+point 6). This mapper only turns z-scores into stick positions; it
+does not prove the wearer intended a command. Before any real
+flight: a labelled per-user training session and its profile
+(``processing/calibrate.py``), a bench test of the whole chain with
+the real pipeline (props off), and a physical kill switch / a way to
+force hover from the remote. Dry-run only until then.
+
 Stdlib only, no numpy. ``drone`` is duck-typed (only ``.set()`` is
 used), so this works with a fake in tests and with the real
 ``hardwaretodrone.Drone`` -- that package lives on ``main``, not on
@@ -56,6 +64,41 @@ DEFAULT_DEBOUNCE = 3
 
 def _clamp(value, low, high):
     return max(low, min(high, value))
+
+
+# The command names in hardwaretodrone.Drone.COMMANDS, one per axis
+# direction. Used by axes_to_command() below.
+_AXIS_TO_COMMAND = {
+    ("pitch", 1): "forward",
+    ("pitch", -1): "backward",
+    ("roll", 1): "right",
+    ("roll", -1): "left",
+    ("throttle", 1): "up",
+    ("throttle", -1): "down",
+}
+
+
+def axes_to_command(axes):
+    """Summarise drone axes as the one command that matches them.
+
+    The command and the axes must come from the same decision (PR #15
+    review, point 2): before this existed, the printed command came
+    from the processor state (focus -> forward, else hover) while the
+    axes came from per-channel activation, so the output could show
+    ``command=hover`` with pitch/roll/throttle all at +/-0.50. Now the
+    command is derived from the axes themselves: the axis with the
+    largest |velocity| wins (ties break pitch, then roll, then
+    throttle), and all-zero axes mean ``hover``. The state field is
+    unchanged -- it is the classifier's state, not the drone decision.
+    """
+    best_axis, best_value = None, 0.0
+    for axis in ("pitch", "roll", "throttle"):
+        value = axes.get(axis, 0.0) or 0.0
+        if abs(value) > abs(best_value):
+            best_axis, best_value = axis, value
+    if best_axis is None or best_value == 0.0:
+        return "hover"
+    return _AXIS_TO_COMMAND[(best_axis, 1 if best_value > 0 else -1)]
 
 
 class DroneMapper:
@@ -148,6 +191,10 @@ class DroneMapper:
         drone.set(pitch=axes["pitch"], roll=axes["roll"],
                   yaw=axes["yaw"], throttle=axes["throttle"])
         return axes
+
+    def command_from_axes(self, axes):
+        """The drone command matching these axes (see axes_to_command)."""
+        return axes_to_command(axes)
 
     def hover(self, drone=None):
         """Reset all velocities to 0 and, if given a drone, centre it."""
