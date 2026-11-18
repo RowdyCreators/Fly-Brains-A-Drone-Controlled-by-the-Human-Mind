@@ -46,6 +46,16 @@ python -m unittest discover tests                                       # tests 
 python Hardware/hardwaretesting/dronevirtualcontroller.py --dry-run     # click-and-hold UI, Esc quits
 ```
 
+Read brain -> fly (`processing/fly.py`; calibrates ~8 s relax + ~8 s action, then band share above threshold = forward, otherwise turn right, hover if unsure or the EEG stalls; needs numpy + scipy):
+
+```bash
+python processing/fly.py --sim                # fake EEG + fake DAC, any machine
+python processing/fly.py                      # real EEG, fake DAC (bench test on the Pi)
+python processing/fly.py --real               # real EEG, REAL drone; asks you to type FLY, strength capped at 50
+python processing/fly.py --channels 3        # only if 3 Pills are wired to A0-A2 (default is 1)
+python processing/fly.py --signal gamma       # drive with jaw clench instead of eyes-closed alpha (alpha|beta|gamma)
+```
+
 Headless / no display (prints the DAC codes the real remote would receive):
 
 ```python
@@ -64,7 +74,7 @@ with Drone(dry_run=True, verbose=True) as drone:
 - The virtual controller needs a GUI display (VM desktop, WSLg, or X forwarding); a headless VM can't open the pygame window — use the snippet above instead.
 - A dry-run `Drone` still has the 0.5 s watchdog: call `command()` every loop or it returns to hover.
 - `smbus2` is imported lazily, so dry runs work even if it isn't installed.
-- **EEG side:** `get_source()` in `signals/signal.py` falls back to `brain_simulator.simulate_brain` when ADS1115/blinka imports fail, but no `brain_simulator` module exists in the repo, so running `signals/signal.py` off-Pi currently fails. Either add one (generator yielding `(timestamp, alpha, beta, gamma)` tuples) or feed `FlyBrain.receive_signals(alpha, beta, gamma)` directly.
+- **EEG side:** `signals/signal.py` `get_source()` falls back to `signals/brain_simulator.py` off-Pi. The flight path uses `signals/eeg_pipeline.py` (BioAmp Pills on ADS1115 A0..; the real rig has ONE Pill on A0, so `fly.py --channels` defaults to 1) instead; `signal.py`'s `read_ads1115` reads those same 3 channels as if they were alpha/beta/gamma, so don't use it for flying.
 - **Not runnable on a VM:** `examples/basicreading.py`, `Hardware/hardwaretesting/testDACsignals.c`, `pot4testing.py` (all need the real ADS1115/DAC).
 
 ## Safety-critical behavior (preserve when editing `drone.py`)
