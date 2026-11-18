@@ -53,15 +53,15 @@ class ADSSource:
         import busio
         import adafruit_ads1x15.ads1115 as ADS
         from adafruit_ads1x15.analog_in import AnalogIn
-        # If ADS.P0 errors, your library version renamed the pin constants.
-        # Check the README for the version you installed.
+        # Pins are plain ints (A0=0, A1=1, A2=2): works on old versions, where
+        # ADS.P0 == 0, and on v3+, which dropped ADS.P0 for ads1x15.Pin.A0 == 0.
 
         i2c = busio.I2C(board.SCL, board.SDA)
         ads = ADS.ADS1115(i2c)
         ads.gain = 1          # +/-4.096 V input range. Power the Pills from 3.3 V
                               # so their output never goes past the ADS1115's supply.
         ads.data_rate = 860   # fastest setting. Shared by all channels.
-        pins = [ADS.P0, ADS.P1, ADS.P2][:CHANNELS]
+        pins = [0, 1, 2][:CHANNELS]
         self.chans = [AnalogIn(ads, p) for p in pins]
 
     def read(self):
